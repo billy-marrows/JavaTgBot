@@ -4,8 +4,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.telegram.telegrambots.meta.api.methods.polls.SendPoll;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
@@ -13,6 +15,7 @@ import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardRow;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 
@@ -23,7 +26,7 @@ public class Bot implements LongPollingSingleThreadUpdateConsumer {
     private Map<Long, String> userNames = new HashMap<>();
     private Map<Long, String> userTagsGender=new HashMap<>();
     private Map<Long, String> userTagsProfession=new HashMap<>();
-    //как будет бд так переедет туда
+    //TODO: переносить данные в базу данных после регистрации
     public String getBotUsername() {
         return Constants.botName; 
     }
@@ -44,18 +47,38 @@ public class Bot implements LongPollingSingleThreadUpdateConsumer {
             case("AWAITING_NAME"):
             	processNameInput(chatId, messageText);
             case("AWAITING_TAGS_gender"):
-            	processTagsGender(chatId,messageText);
+            	processTagsGender(chatId);
             return;
             case("AWAITING_TAGS_profession"):
-            	processTagsProfession(chatId,messageText);
+            	processTagsProfession(chatId);
             return;
+            case("REGISTERED"):
+            	sendMenu(chatId);
+            case("READY"):
+            	switch(messageText) {
+            	case("Кто я?"):
+            		sendMessage(chatId,"Пока хз");
+            		sendMenu(chatId);
+            		break;
+            	case("Мои опросы"):
+            		sendMessage(chatId,"Пока хз");
+            		sendMenu(chatId);
+            		break;
+            	case("Статистика"):
+            		sendMessage(chatId,"Пока хз");
+            		sendMenu(chatId);
+            		break;
+            	case("Помощь"):
+            		sendMessage(chatId,"Пока хз");
+            		sendMenu(chatId);
+            		break;            	     	
+            	}
+            break;
             default:
-                // Регистрация завершена
-                sendMessage(chatId, "Вы уже зарегистрированы! Ба бу бэ).");
+                sendMessage(chatId, "Как ты сюда попал?");
             }
             }
         if(update.hasCallbackQuery()) {
-        	System.out.println("коллбэк есть");
         	Long chatId= update.getCallbackQuery().getMessage().getChatId();
         	String messageText=update.getCallbackQuery().getData();
         	handleCallback(chatId,update);
@@ -63,13 +86,18 @@ public class Bot implements LongPollingSingleThreadUpdateConsumer {
             switch (state) {
             case("AWAITING_NAME"):
             	processNameInput(chatId, messageText);
-            return;
             case("AWAITING_TAGS_gender"):
-            	processTagsGender(chatId,messageText);
+            	processTagsGender(chatId);
             return;
             case("AWAITING_TAGS_profession"):
-            	processTagsProfession(chatId,messageText);
+            	processTagsProfession(chatId);
             return;
+            case("REGISTERED"):
+            	sendMenu(chatId);
+            return;
+            default:
+                sendMessage(chatId, "Ты не должен был сюда попасть");
+            
             }
         }
         
@@ -107,7 +135,9 @@ public class Bot implements LongPollingSingleThreadUpdateConsumer {
         userState.put(chatId, "AWAITING_TAGS_gender");
         return true;
     }
-    private void processTagsGender(long chatId, String messageText) {
+    
+    
+    private void processTagsGender(long chatId) {
     	InlineKeyboardButton male = InlineKeyboardButton.builder()
                 .text("Мужчина")
                 .callbackData("tag_male")
@@ -138,7 +168,7 @@ public class Bot implements LongPollingSingleThreadUpdateConsumer {
         }
     }
     
-    private void processTagsProfession(long chatId, String messageText) {
+    private void processTagsProfession(long chatId) {
     	InlineKeyboardButton prog = InlineKeyboardButton.builder()
                 .text("Программист")
                 .callbackData("tag_programmer")
@@ -169,6 +199,44 @@ public class Bot implements LongPollingSingleThreadUpdateConsumer {
         }
     }
     
+    public void sendMenu(long chatId) {
+    	    int uncompletedPolls=0;                          // TODO: сделать счетчик обновляемым с базы данных
+    	    userState.put(chatId,"READY");
+    	    KeyboardRow row1 = new KeyboardRow();
+    	    row1.add("Мои опросы");
+    	    row1.add("Статистика");
+    	    KeyboardRow row2 = new KeyboardRow();
+    	    row2.add(" Помощь");
+    	    row2.add("Кто я?");
+    	    ReplyKeyboardMarkup keyboard = ReplyKeyboardMarkup
+    	            .builder()
+    	            .keyboard(List.of(row1, row2)) 
+    	            .resizeKeyboard(true)       
+    	            .oneTimeKeyboard(false) 
+    	            .build();
+    	    SendMessage message=null;
+    	    if (uncompletedPolls>0) {
+    	     message= SendMessage
+    	            .builder()
+    	            .chatId(chatId)
+    	            .text("У вас есть непройденных "+ uncompletedPolls+" тестов")
+    	            .replyMarkup(keyboard)
+    	            .build();
+    	    }
+    	    else {
+        	message = SendMessage
+        	            .builder()
+        	            .chatId(chatId)
+        	            .text("У вас пройдены все тесты!")
+        	            .replyMarkup(keyboard)
+        	            .build();
+    	    }
+    	    try {
+    	        telegramClient.execute(message);
+    	    } catch (TelegramApiException e) {
+    	        e.printStackTrace();
+    	    }
+    }
     private void handleCallback(long chatId,Update update) {
     	String CallData=update.getCallbackQuery().getData();
     	if (CallData.startsWith("tag_")) {
@@ -185,7 +253,6 @@ public class Bot implements LongPollingSingleThreadUpdateConsumer {
     		break;
     		}
     	}
- 
     };
     private void sendMessage(long chatId, String text) {
         SendMessage message = SendMessage.builder()
@@ -197,5 +264,23 @@ public class Bot implements LongPollingSingleThreadUpdateConsumer {
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }
+    }
+    
+    //TODO: Неготовый конструктор отправителя опросов
+    private void PollConstructor(long chatId,boolean isAnonymous,boolean hasFreeText,boolean hasMultipleAnswers,ArrayList<String>options,int expirationDate) {
+    	if(hasFreeText) {
+    		 InlineKeyboardButton freeText = InlineKeyboardButton.builder()
+    	                .text("Открытый ответ")
+    	                .callbackData("answer_FreeText")
+    	                .build();
+    		InlineKeyboardRow row=new InlineKeyboardRow(freeText);
+    		List<InlineKeyboardRow> rows = new ArrayList<>();
+            rows.add(row);
+            InlineKeyboardMarkup keyboard = InlineKeyboardMarkup.builder()
+                    .keyboard(rows)
+                    .build();
+        	SendPoll sendpoll=SendPoll.builder().allowMultipleAnswers(hasMultipleAnswers).closeDate(expirationDate).replyMarkup(keyboard).build();
+    	}
+    	SendPoll sendpoll=SendPoll.builder().allowMultipleAnswers(hasMultipleAnswers).closeDate(expirationDate).build();
     }
 }
