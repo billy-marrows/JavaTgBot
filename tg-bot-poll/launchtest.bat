@@ -1,1 +1,1 @@
-java -jar C:\Users\getre\Desktop\javatgbot\tg-bot-poll\target\tg-bot-poll-0.0.1-SNAPSHOT.jar
+java -jar C:\Users\getre\git\repository\tg-bot-poll\target\tg-bot-poll-0.0.1-SNAPSHOT.jar
